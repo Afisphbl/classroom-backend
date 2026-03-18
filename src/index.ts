@@ -5,6 +5,7 @@ import { demoUsers } from "./db/schema";
 async function main() {
   try {
     console.log("Performing CRUD operations...");
+    console.log("New branch");
 
     const [newUser] = await db
       .insert(demoUsers)
