@@ -1,54 +1,26 @@
-import { eq } from "drizzle-orm";
-import { db, pool } from "./db";
-import { demoUsers } from "./db/schema";
+import express from "express";
+import cors from "cors";
+import subjectsRoutes from "./routes/Subjects";
 
-async function main() {
-  try {
-    console.log("Performing CRUD operations...");
-    console.log("New branch");
+const app = express();
+const PORT = 8000;
 
-    const [newUser] = await db
-      .insert(demoUsers)
-      .values({ name: "Admin User", email: "admin@example.com" })
-      .returning();
+app.use(
+  cors({
+    origin: process.env.FRONTEND_URL,
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true,
+  }),
+);
 
-    if (!newUser) {
-      throw new Error("Failed to create user");
-    }
+app.use(express.json());
 
-    console.log("CREATE: New user created:", newUser);
+app.use("/api/subjects", subjectsRoutes);
 
-    const foundUser = await db
-      .select()
-      .from(demoUsers)
-      .where(eq(demoUsers.id, newUser.id));
-    console.log("READ: Found user:", foundUser[0]);
+app.get("/", (req, res) => {
+  res.send("Hello, welcome to classroom backend");
+});
 
-    const [updatedUser] = await db
-      .update(demoUsers)
-      .set({ name: "Super Admin" })
-      .where(eq(demoUsers.id, newUser.id))
-      .returning();
-
-    if (!updatedUser) {
-      throw new Error("Failed to update user");
-    }
-
-    console.log("UPDATE: User updated:", updatedUser);
-
-    await db.delete(demoUsers).where(eq(demoUsers.id, newUser.id));
-    console.log("DELETE: User deleted.");
-
-    console.log("\nCRUD operations completed successfully.");
-  } catch (error) {
-    console.error("Error performing CRUD operations:", error);
-    process.exit(1);
-  } finally {
-    if (pool) {
-      await pool.end();
-      console.log("Database pool closed.");
-    }
-  }
-}
-
-main();
+app.listen(PORT, () => {
+  console.log(`Server is running at http://localhost:${PORT}`);
+});
