@@ -1,14 +1,13 @@
 import express from "express";
-import { or, ilike, and, sql, eq, getTableColumns, desc } from "drizzle-orm";
-import { subjects, departments } from "../db/schema";
+import { and, desc, ilike, or, sql } from "drizzle-orm";
 import { db } from "../db";
-import { parse } from "path";
+import { departments, subjects } from "../db/schema/app";
 const router = express.Router();
 
 // Get all subjects with options for pagination, filtering, and search
 router.get("/", async (req, res) => {
   try {
-    const { search, department, page = 1, limit = 10 } = req.query;
+    const { search, departmentId, page = 1, limit = 10 } = req.query;
 
     const currentPage = Math.max(1, parseInt(String(page), 10) || 1);
     const limitPerPage = Math.min(
@@ -27,41 +26,43 @@ router.get("/", async (req, res) => {
       );
     }
 
-    if (department) {
-      const deptPattern = `%${String(department).replace(/[%_]/g, "\\$&")}%`;
-      filterConditions.push(ilike(departments.name, deptPattern));
+    if (departmentId) {
+      filterConditions.push(sql`${subjects.departmentId} = ${Number(departmentId)}`);
     }
 
     const whereClause =
       filterConditions.length > 0 ? and(...filterConditions) : undefined;
 
-    const countResult = await db
+    const totalRows = await db
       .select({ count: sql<number>`count(*)` })
       .from(subjects)
-      .leftJoin(departments, eq(subjects.departmentId, departments.id))
       .where(whereClause);
 
-    const totalCount = countResult[0]?.count ?? 0;
-
-    const subjectsList = await db
+    const data = await db
       .select({
-        ...getTableColumns(subjects),
-        department: { ...getTableColumns(departments) },
+        id: subjects.id,
+        name: subjects.name,
+        code: subjects.code,
+        description: subjects.description,
+        departmentId: subjects.departmentId,
+        createdAt: subjects.createdAt,
+        updatedAt: subjects.updatedAt,
+        departmentName: departments.name,
       })
       .from(subjects)
-      .leftJoin(departments, eq(subjects.departmentId, departments.id))
+      .leftJoin(departments, sql`${subjects.departmentId} = ${departments.id}`)
       .where(whereClause)
-      .orderBy(desc(subjects.createdAt))
+      .orderBy(desc(subjects.id))
       .limit(limitPerPage)
       .offset(offset);
 
     res.status(200).json({
-      data: subjectsList,
+      data,
       pagination: {
         page: currentPage,
         limit: limitPerPage,
-        total: totalCount,
-        totalPages: Math.ceil(totalCount / limitPerPage),
+        total: totalRows[0]?.count ?? 0,
+        totalPages: Math.ceil((totalRows[0]?.count ?? 0) / limitPerPage),
       },
     });
   } catch (e) {
